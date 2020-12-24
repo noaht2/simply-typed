@@ -1,4 +1,4 @@
-{-# LANGUAGE ParallelListComp, InstanceSigs #-}
+{-# LANGUAGE ParallelListComp, InstanceSigs, RecursiveDo #-}
 module Parsing where
 import Types
 import Control.Monad
@@ -62,6 +62,11 @@ instance MonadPlus Parser where
 
 instance MonadFail Parser where
   fail _ = mzero
+
+-- instance MonadFix Parser where
+--   mfix :: (a -> Parser a) -> Parser a
+--   mfix f = p
+--     where p <$> f = p
 
 getc :: Parser Char
 getc = Parser f
