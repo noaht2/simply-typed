@@ -26,9 +26,6 @@ instance Applicative Parser where
   -- pure returns a Parser that returns pure’s argument and moves on.
   pure x = Parser (\s -> [(x, s)])
   (<*>) :: Parser (a -> b) -> Parser a -> Parser b
-  -- (<*>) uses the parse-function that is its first operand to modify the
-  -- parse-function that is its second argument based on the text to be parsed.
-  -- (<*>) probably doesn’t satisfy the laws of Applicative.
   fp <*> p = Parser (\s -> [(y, s''')
                            | (f, s') <- apply fp s,
                              (x, s'') <- apply p s',
@@ -63,14 +60,13 @@ instance MonadPlus Parser where
   mzero = empty
   mplus = (<|>)
 
+instance MonadFail Parser where
+  fail _ = mzero
+
 getc :: Parser Char
 getc = Parser f
   where f [] = []
         f (c:cs) = [(c,cs)]
-
--- guard :: Bool -> Parser ()
--- guard True = return ()
--- guard False = fail2parse
 
 sat :: (Char -> Bool) -> Parser Char
 sat p = do {c <- getc;
@@ -83,25 +79,25 @@ char x = do {c <- sat (==x);
 
 alphabet = "QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzxcvbnm'′″‴⁗+×Θ"
 
-var :: Parser Var
-var = do {v <- many (sat (flip elem alphabet)); return (Var v)}
+var :: Parser Expr
+var = do {v <- many (sat (flip elem alphabet)); return $ Left $ Var v}
 
-app :: Parser App
+abstr :: Parser Expr
+abstr = do {char '(';
+            char 'λ';
+            (Left v) <- var;
+            char '.';
+            m <- expr;
+            char ')';
+            return $ Right $ Left $ Abstr v m}
+
+app :: Parser Expr
 app = do {char '(';
           m <- expr;
           char ' ';
           n <- expr;
           char ')';
-          return (App m n)}
-
-abstr :: Parser Abstr
-abstr = do {char '(';
-            char 'λ';
-            v <- var;
-            char '.';
-            m <- expr;
-            char ')';
-            return (Abstr v m)}
+          return $ Right $ Right $ App m n}
 
 expr :: Parser Expr
 expr = abstr <|> app <|> var
