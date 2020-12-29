@@ -1,8 +1,10 @@
 {-# LANGUAGE ParallelListComp, InstanceSigs, RecursiveDo #-}
-module Parsing where
+module Parsing (expr, parse) where
 import Types
 import Control.Monad
 import Control.Applicative
+
+done = return ()
 
 newtype Parser a = Parser (String -> [(a, String)])
 
@@ -26,9 +28,9 @@ instance Applicative Parser where
   -- pure returns a Parser that returns pure’s argument and moves on.
   pure x = Parser (\s -> [(x, s)])
   (<*>) :: Parser (a -> b) -> Parser a -> Parser b
-  fp <*> p = Parser (\s -> [(y, s''')
-                           | (f, s') <- apply fp s,
-                             (x, s'') <- apply p s',
+  p <*> q = Parser (\s -> [(y, s''')
+                           | (f, s') <- apply p s,
+                             (x, s'') <- apply q s',
                              (y, s''') <- apply (pure (f x)) s''])
 
 instance Monad Parser where
@@ -63,11 +65,6 @@ instance MonadPlus Parser where
 instance MonadFail Parser where
   fail _ = mzero
 
--- instance MonadFix Parser where
---   mfix :: (a -> Parser a) -> Parser a
---   mfix f = p
---     where p <$> f = p
-
 getc :: Parser Char
 getc = Parser f
   where f [] = []
@@ -82,27 +79,98 @@ char :: Char -> Parser ()
 char x = do {c <- sat (==x);
              return ()}
 
+string :: String -> Parser ()
+string (c:cs) = char c >> string cs
+string "" = done
+
 alphabet = "QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzxcvbnm'′″‴⁗+×Θ"
 
+base :: Parser SimpleType
+base = do {char 'B';
+           return (Left Base)}
+
+func_type :: Parser SimpleType
+func_type = do {char '(';
+                param_type <- simple_type;
+                char '→';
+                result_type <- simple_type;
+                char ')';
+                return $ Right $ Left $ param_type `To` result_type}
+
+product_type :: Parser SimpleType
+product_type = do {char '(';
+                   first_type <- simple_type;
+                   char '×';
+                   second_type <- simple_type;
+                   char ')';
+                   return $ Right $ Right $ Left $ first_type `Prod` second_type}
+
+sum_type :: Parser SimpleType
+sum_type = do {char '(';
+               first_type <- simple_type;
+               char '+';
+               second_type <- simple_type;
+               char ')';
+               return $ Right $ Right $ Right $ first_type `Sum` second_type}
+
+simple_type :: Parser SimpleType
+simple_type = base <|> func_type <|> product_type <|> sum_type
+
+first_parser :: Parser Expr
+first_parser = do {string "fst";
+                   return $ Left Fst}
+
+second_parser :: Parser Expr
+second_parser = do {string "snd";
+                    return $ Left Snd}
+
 var :: Parser Expr
-var = do {v <- many (sat (flip elem alphabet)); return $ Left $ Var v}
+var = do {char '(';
+          v <- many (sat (flip elem alphabet));
+          char ':';
+          t <- simple_type;
+          char ')';
+          return $ Right $ Left $ Var v t}
 
 abstr :: Parser Expr
-abstr = do {char '(';
-            char 'λ';
-            (Left v) <- var;
+abstr = do {string "(λ";
+            (Right (Left v)) <- var;
             char '.';
-            m <- expr;
+            (Right m) <- expr;
             char ')';
-            return $ Right $ Left $ Abstr v m}
+            return $ Right $ Right $ Left $ Abstr v m}
 
 app :: Parser Expr
 app = do {char '(';
           m <- expr;
           char ' ';
-          n <- expr;
+          (Right n) <- expr;
           char ')';
-          return $ Right $ Right $ App m n}
+          return $ Right $ Right $ Right $ Left $ App m n}
+
+pair :: Parser Expr
+pair = do {char '⟨';
+           (Right m) <- expr;
+           char ',';
+           (Right n) <- expr;
+           char '⟩';
+           return $ Right $ Right $ Right $ Right $ Left $ Pair m n}
+
+left_union :: Parser Expr
+left_union = do {string "(Left ";
+                 (Right m) <- expr;
+                 char ' ';
+                 t <- simple_type;
+                 char ')';
+                 return $ Right $ Right $ Right $ Right $ Right $ Union (get_type m `Sum` t) True m}
+
+right_union :: Parser Expr
+right_union = do {string "(Right ";
+                  t <- simple_type;
+                  char ' ';
+                  (Right m) <- expr;
+                  char ')';
+                  return $ Right $ Right $ Right $ Right $ Right $ Union (t `Sum` get_type m) False m}
 
 expr :: Parser Expr
-expr = abstr <|> app <|> var
+expr = pair <|> abstr <|> app <|> var <|> first_parser <|> second_parser <|> left_union <|> right_union
