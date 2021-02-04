@@ -12,8 +12,8 @@ simple = "(x:B)"
 false = "(f:((B→B)+B))"
 
 present :: String -> IO ()
-present s = if well_typed m then putStr (display m) >> putStr " \t:\t " >> putStr (display_type $ get_type m) >> putStr " \t=ᵦₑ\t " >> putStrLn (display $ simplify m) else error "Not well typed!"
+present s = if well_typed m then putStr (display m) >> putStr " \t: \t" >> putStr (display_type $ get_type m) >> putStr " \t=ᵦₑ \t" >> putStrLn (display $ simplify m) else error "Not well typed!"
   where m = parse expr s
 
 main :: IO ()
-main = do present not_func
+main = present not_func
