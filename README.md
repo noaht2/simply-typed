@@ -1,4 +1,4 @@
-An implementation of the simply typed lambda calculus in Haskell.
+An implementation of the simply typed lambda calculus in Haskell extended with product types and sum types/ordered pairs and tagged unions.
 
 To build:
 ```sh
