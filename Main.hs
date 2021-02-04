@@ -16,4 +16,5 @@ present s = if well_typed m then putStr (display m) >> putStr " \t: \t" >> putSt
   where m = parse expr s
 
 main :: IO ()
-main = present not_func
+main = do {input <- getLine;
+           present input}
